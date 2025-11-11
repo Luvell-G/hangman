@@ -27,13 +27,28 @@ Open **http://localhost:3000** to view it in your browser.
 The page will reload when you make changes.  
 You may also see any lint errors in the console.
 
+
 ---
 
 ### `npm test`
 
 Launches the test runner in interactive watch mode.  
-See more about [running tests](https://facebook.github.io/create-react-app/docs/running-tests).
+Automatically detect and run test files such as HangmanGame.test.js
 
+Watch for changes and rerun affected tests
+
+Display pass/fail output for each test
+The tests check:
+
+Proper rendering of the HangmanGame component
+
+Letter input behavior (correct vs incorrect guesses)
+
+Lives counter updates
+
+Game over and win alerts
+
+Reset functionality of the “New Game” button
 ---
 
 ### `npm run build`
