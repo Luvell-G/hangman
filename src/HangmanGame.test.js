@@ -1,89 +1,259 @@
+// HangmanGame.js
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import HangmanGame from './HangmanGame';
+import './App.css';
+import Login from './Login';
+import SingleLetterSearchBar from './SingleLetterSearchBar';
 
-// Mock image imports since Jest doesn't handle image files natively
-jest.mock('./noose.png', () => 'noose.png');
-jest.mock('./upperBody.png', () => 'upperBody.png');
-jest.mock('./upperandlowerbody.png', () => 'upperandlowerbody.png');
-jest.mock('./1arm.png', () => '1arm.png');
-jest.mock('./botharms.png', () => 'botharms.png');
-jest.mock('./1leg.png', () => '1leg.png');
-jest.mock('./dead.png', () => 'dead.png');
+const pics = [
+  'noose.png',
+  'upperBody.png',
+  'upperandlowerbody.png',
+  '1arm.png',
+  'botharms.png',
+  '1leg.png',
+  'dead.png'
+];
 
-describe('HangmanGame Component', () => {
-  test('renders New Game button and Lives Left counter', () => {
-    render(<HangmanGame />);
-    expect(screen.getByText(/New Game/i)).toBeInTheDocument();
-    expect(screen.getByText(/Lives Left:/i)).toBeInTheDocument();
-  });
+const words = [
+  "Morehouse", "Spelman", "Basketball", "Table",
+  "Museum", "Excellent", "Fun", "React"
+];
 
-  test('starts a new game and displays underscores for a word', () => {
-    render(<HangmanGame />);
-    const startButton = screen.getByText(/New Game/i);
-    fireEvent.click(startButton);
+class HangmanGame extends React.Component {
+  state = {
+    wordList: words,
+    curWord: 0,
+    lifeLeft: 0,
+    usedLetters: [],
+    correctLetters: [],
 
-    const display = screen.getByText(/_/);
-    expect(display).toBeInTheDocument();
-  });
+    // Player State
+    playerName: "",
+    wins: 0,
+    losses: 0,
+    isLoggedIn: false
+  };
 
-  test('pressing a letter marks it as used (disabled)', () => {
-    render(<HangmanGame />);
-    fireEvent.click(screen.getByText(/New Game/i));
+  componentDidMount() {
+    this.startNewGame();
+  }
 
-    const letterA = screen.getByText('A');
-    fireEvent.click(letterA);
-
-    expect(letterA).toBeDisabled();
-  });
-
-  test('incorrect guess increases life counter and changes image', () => {
-    render(<HangmanGame />);
-    fireEvent.click(screen.getByText(/New Game/i));
-
-    const initialImg = screen.getByAltText(/Hangman stage/i);
-    const initialSrc = initialImg.getAttribute('src');
-
-    const badGuess = screen.getByText('Z');
-    fireEvent.click(badGuess);
-
-    const updatedImg = screen.getByAltText(/Hangman stage/i);
-    const updatedSrc = updatedImg.getAttribute('src');
-
-    expect(updatedSrc).not.toBe(initialSrc);
-    expect(screen.getByText(/Lives Left:/i)).toHaveTextContent('Lives Left: 5');
-  });
-
-  // ✅ FIXED TEST
-  test('correct guess does not reduce lives', () => {
-    jest.spyOn(global.Math, 'random').mockReturnValue(0); // Always pick "Morehouse"
-    render(<HangmanGame />);
-    fireEvent.click(screen.getByText(/New Game/i));
-
-    const livesBefore = screen.getByText(/Lives Left:/i).textContent;
-
-    fireEvent.click(screen.getByText('M')); // Correct letter
-    const livesAfter = screen.getByText(/Lives Left:/i).textContent;
-
-    expect(livesAfter).toBe(livesBefore);
-    jest.spyOn(global.Math, 'random').mockRestore();
-  });
-
-  // ✅ Also make sure Game Over works (with timers)
-  test('game over triggers alert when lives reach 6', () => {
-    jest.useFakeTimers();
-    window.alert = jest.fn();
-
-    render(<HangmanGame />);
-    fireEvent.click(screen.getByText(/New Game/i));
-
-    ['Q', 'Z', 'X', 'V', 'J', 'P'].forEach((l) => {
-      fireEvent.click(screen.getByText(l));
+  // -----------------------------
+  // LOGIN CALLBACK
+  // -----------------------------
+  handleLogin = (playerData) => {
+    this.setState({
+      playerName: playerData.playerName,
+      wins: playerData.wins,
+      losses: playerData.losses,
+      isLoggedIn: true
     });
+  };
 
-    jest.runAllTimers();
-    expect(window.alert).toHaveBeenCalledWith('Game Over!');
-    jest.useRealTimers();
-  });
-});
+  // -----------------------------
+  // START NEW GAME
+  // -----------------------------
+  startNewGame = () => {
+    this.setState({
+      curWord: Math.floor(Math.random() * words.length),
+      lifeLeft: 0,
+      usedLetters: [],
+      correctLetters: []
+    });
+  };
+
+  // -----------------------------
+  // HANDLE LETTER INPUT
+  // -----------------------------
+  handleSearch = (letter) => {
+    letter = letter.toLowerCase();
+    const { usedLetters, correctLetters, wordList, curWord } = this.state;
+
+    if (usedLetters.includes(letter)) return;
+
+    const word = wordList[curWord].toLowerCase();
+    const isCorrect = word.includes(letter);
+
+    this.setState(prev => ({
+      usedLetters: [...prev.usedLetters, letter],
+      correctLetters: isCorrect
+        ? [...prev.correctLetters, letter]
+        : prev.correctLetters,
+      lifeLeft: isCorrect ? prev.lifeLeft : prev.lifeLeft + 1
+    }), this.checkGameStatus);
+  };
+
+  // -----------------------------
+  // CHECK WIN / LOSS
+  // -----------------------------
+  checkGameStatus = () => {
+    const { wordList, curWord, correctLetters, lifeLeft } = this.state;
+    const word = wordList[curWord].toLowerCase();
+    const uniqueLetters = [...new Set(word)];
+
+    if (lifeLeft >= 6) {
+      this.addLoss();
+      setTimeout(() => {
+        alert("Game Over!");
+        this.startNewGame();
+      }, 200);
+    }
+
+    if (uniqueLetters.every(l => correctLetters.includes(l))) {
+      this.addWin();
+      setTimeout(() => {
+        alert("You Win!");
+        this.startNewGame();
+      }, 200);
+    }
+  };
+
+  // -----------------------------
+  // UPDATE STATS TO DB
+  // -----------------------------
+  sendStatsToDB = async () => {
+    const { playerName, wins, losses } = this.state;
+
+    await fetch("http://localhost:3001/api/player", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerName, wins, losses })
+    });
+  };
+
+  addWin = () => {
+    this.setState(prev => ({ wins: prev.wins + 1 }), this.sendStatsToDB);
+  };
+
+  addLoss = () => {
+    this.setState(prev => ({ losses: prev.losses + 1 }), this.sendStatsToDB);
+  };
+
+  // -----------------------------
+  // RENDER LETTER BUTTONS
+  // -----------------------------
+  renderLetterButtons = () => {
+    const alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
+    const { usedLetters, correctLetters } = this.state;
+
+    return alphabet.map(letter => {
+      const used = usedLetters.includes(letter);
+      const correct = correctLetters.includes(letter);
+      const bg = !used ? "black" : correct ? "green" : "red";
+
+      return (
+        <button
+          key={letter}
+          disabled={used}
+          onClick={() => this.handleSearch(letter)}
+          style={{
+            backgroundColor: bg,
+            color: "white",
+            margin: "3px",
+            padding: "10px",
+            borderRadius: "5px",
+            cursor: used ? "not-allowed" : "pointer"
+          }}
+        >
+          {letter.toUpperCase()}
+        </button>
+      );
+    });
+  };
+
+  // -----------------------------
+  // RENDER UI
+  // -----------------------------
+  render() {
+    const {
+      wordList, curWord, lifeLeft,
+      playerName, isLoggedIn, wins, losses
+    } = this.state;
+
+    const word = wordList[curWord];
+
+    return (
+      <div style={{
+        textAlign: "center",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center"
+      }}>
+
+        {/* ✅ LOGIN OVERLAY CENTERED */}
+        {!isLoggedIn && (
+          <Login onLogin={this.handleLogin} />
+        )}
+
+        {/* ✅ PLAYER INFO AFTER LOGIN */}
+        {isLoggedIn && (
+          <div style={{
+            position: "absolute",
+            top: "15px",
+            left: "15px",
+            background: "rgba(0,0,0,0.1)",
+            padding: "10px",
+            borderRadius: "8px",
+            fontWeight: "bold"
+          }}>
+            Player: {playerName} <br />
+            Wins: {wins} | Losses: {losses} <br />
+            Win %: {(wins + losses === 0 ? 0 :
+              (wins / (wins + losses)) * 100).toFixed(1)}%
+          </div>
+        )}
+
+        {/* ✅ LIVES DISPLAY */}
+        <div style={{
+          position: "absolute",
+          top: "15px",
+          right: "15px",
+          fontSize: "20px",
+          fontWeight: "bold",
+          background: "rgba(0,0,0,0.1)",
+          padding: "8px",
+          borderRadius: "8px"
+        }}>
+          Lives Left: {6 - lifeLeft}
+        </div>
+
+        {/* ✅ GAME UI ONLY SHOWS AFTER LOGIN */}
+        {isLoggedIn && (
+          <>
+            <img
+              src={pics[Math.min(lifeLeft, pics.length - 1)]}
+              alt="Hangman stage"
+              style={{ width: "200px", marginTop: "60px" }}
+            />
+
+            <button style={{ marginTop: "20px" }} onClick={this.startNewGame}>
+              New Game
+            </button>
+
+            <p style={{ fontSize: "28px", letterSpacing: "10px", marginTop: "20px" }}>
+              {word
+                .split("")
+                .map(letter =>
+                  this.state.correctLetters.includes(letter.toLowerCase())
+                    ? letter.toUpperCase()
+                    : "_"
+                )
+                .join(" ")
+              }
+            </p>
+
+            <SingleLetterSearchBar onSearch={this.handleSearch} />
+
+            <div style={{ marginTop: "20px" }}>
+              {this.renderLetterButtons()}
+            </div>
+          </>
+        )}
+
+      </div>
+    );
+  }
+}
+
+export default HangmanGame;
