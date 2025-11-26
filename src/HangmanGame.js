@@ -1,94 +1,143 @@
-import React from 'react';
-import './App.css';
-import LetterBox from './LetterBox';
-import SingleLetterSearchBar from './SingleLetterSearchBar';
+// HangmanGame.js
+import React from "react";
+import Login from "./Login";
+import SingleLetterSearchBar from "./SingleLetterSearchBar";
 
-const pics = ['noose.png', 'upperBody.png', 'upperandlowerbody.png', '1arm.png', 'botharms.png', '1leg.png', 'dead.png'];
-const words = ["Morehouse", "Spelman", "Basketball", "Table", "Museum", "Excellent", "Fun", "React"];
+const pics = [
+  "noose.png",
+  "upperBody.png",
+  "upperandlowerbody.png",
+  "1arm.png",
+  "botharms.png",
+  "1leg.png",
+  "dead.png"
+];
+
+const words = [
+  "Morehouse",
+  "Spelman",
+  "Basketball",
+  "Table",
+  "Museum",
+  "Excellent",
+  "Fun",
+  "React"
+];
 
 class HangmanGame extends React.Component {
   state = {
-    wordList: [],
+    wordList: words,
     curWord: 0,
-    lifeLeft: 0, 
+    lifeLeft: 0,
     usedLetters: [],
-    playerName: '',
-    correctLetters: []
+    correctLetters: [],
+
+    playerName: "",
+    wins: 0,
+    losses: 0,
+    isLoggedIn: false
   };
 
   componentDidMount() {
-    this.setState({ wordList: words });
+    this.startNewGame();
   }
+
+  handleLogin = (playerData) => {
+    this.setState({
+      playerName: playerData.playerName,
+      wins: playerData.wins,
+      losses: playerData.losses,
+      isLoggedIn: true
+    });
+  };
 
   startNewGame = () => {
     this.setState({
-      curWord: Math.floor(Math.random() * this.state.wordList.length),
+      curWord: Math.floor(Math.random() * words.length),
       lifeLeft: 0,
       usedLetters: [],
       correctLetters: []
     });
   };
 
- handleSearch = (letter) => {
-  letter = letter.toLowerCase(); 
+  handleSearch = (letter) => {
+    letter = letter.toLowerCase();
+    const { usedLetters, correctLetters, wordList, curWord } = this.state;
 
-  const { wordList, curWord, usedLetters, correctLetters } = this.state;
-  const word = wordList[curWord]?.toLowerCase() || '';
+    if (usedLetters.includes(letter)) return;
 
-  if (usedLetters.includes(letter)) return;
+    const word = wordList[curWord].toLowerCase();
+    const isCorrect = word.includes(letter);
 
-  const isCorrect = word.includes(letter);
-
-  this.setState(prevState => ({
-    usedLetters: [...prevState.usedLetters, letter],
-    correctLetters: isCorrect ? [...prevState.correctLetters, letter] : prevState.correctLetters,
-    lifeLeft: !isCorrect ? prevState.lifeLeft + 1 : prevState.lifeLeft
-  }), () => {
-    this.checkGameStatus();
-  });
-};
-
+    this.setState(
+      (prev) => ({
+        usedLetters: [...prev.usedLetters, letter],
+        correctLetters: isCorrect
+          ? [...prev.correctLetters, letter]
+          : prev.correctLetters,
+        lifeLeft: isCorrect ? prev.lifeLeft : prev.lifeLeft + 1
+      }),
+      this.checkGameStatus
+    );
+  };
 
   checkGameStatus = () => {
-  const { wordList, curWord, correctLetters, lifeLeft } = this.state;
-  const word = wordList[curWord]?.toLowerCase() || '';
-  const uniqueLetters = [...new Set(word.split(''))];
+    const { wordList, curWord, correctLetters, lifeLeft } = this.state;
+    const word = wordList[curWord].toLowerCase();
+    const uniqueLetters = [...new Set(word)];
 
-  if (lifeLeft >= 6) {
-    setTimeout(() => {
+    if (lifeLeft >= 6) {
+      this.addLoss();
       alert("Game Over!");
       this.startNewGame();
-    }, 100); 
-  } else if (uniqueLetters.every(l => correctLetters.includes(l))) {
-    setTimeout(() => {
+    }
+
+    if (uniqueLetters.every((l) => correctLetters.includes(l))) {
+      this.addWin();
       alert("You Win!");
       this.startNewGame();
-    }, 100);
-  }
-};
+    }
+  };
 
+  addWin = () => {
+    this.setState((prev) => ({ wins: prev.wins + 1 }), this.sendStatsToDB);
+  };
+
+  addLoss = () => {
+    this.setState((prev) => ({ losses: prev.losses + 1 }), this.sendStatsToDB);
+  };
+
+  sendStatsToDB = async () => {
+    const { playerName, wins, losses } = this.state;
+
+    await fetch("http://localhost:3001/api/player", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerName, wins, losses })
+    });
+  };
 
   renderLetterButtons = () => {
     const alphabet = "abcdefghijklmnopqrstuvwxyz".split("");
     const { usedLetters, correctLetters } = this.state;
 
-    return alphabet.map(letter => {
-      const isUsed = usedLetters.includes(letter);
-      const isCorrect = correctLetters.includes(letter);
-      const bgColor = !isUsed ? "black" : isCorrect ? "green" : "red";
+    return alphabet.map((letter) => {
+      const used = usedLetters.includes(letter);
+      const correct = correctLetters.includes(letter);
+      const bg = !used ? "black" : correct ? "green" : "red";
 
       return (
         <button
           key={letter}
+          disabled={used}
           onClick={() => this.handleSearch(letter)}
-          disabled={isUsed}
           style={{
-            backgroundColor: bgColor,
+            backgroundColor: bg,
             color: "white",
             margin: "3px",
             padding: "10px",
-            borderRadius: "5px",
-            cursor: isUsed ? "not-allowed" : "pointer"
+            borderRadius: "6px",
+            cursor: used ? "not-allowed" : "pointer"
           }}
         >
           {letter.toUpperCase()}
@@ -97,64 +146,60 @@ class HangmanGame extends React.Component {
     });
   };
 
- render() {
-  const { wordList, curWord, lifeLeft } = this.state;
-  const word = wordList[curWord] || '';
+  render() {
+    const { wordList, curWord, lifeLeft, playerName, wins, losses, isLoggedIn } =
+      this.state;
+    const word = wordList[curWord];
 
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      textAlign: 'center',
-      minHeight: '100vh',
-      position: 'relative'
-    }}>
+    return (
+      <div style={{ textAlign: "center" }}>
+        {!isLoggedIn && <Login onLogin={this.handleLogin} />}
 
-      {/* Lives Left Counter - Top Right */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        right: '20px',
-        fontSize: '20px',
-        fontWeight: 'bold',
-        background: 'rgba(0,0,0,0.1)',
-        padding: '5px 10px',
-        borderRadius: '8px'
-      }}>
-        Lives Left: {6 - lifeLeft}
+        {isLoggedIn && (
+          <div>
+            <h1 style={{ marginTop: "30px" }}>
+              Let's play <span style={{ color: "blue" }}>({playerName})</span>
+            </h1>
+
+            <h3>
+              Wins: {wins} | Losses: {losses} | Win %:{" "}
+              {(wins + losses === 0
+                ? 0
+                : (wins / (wins + losses)) * 100
+              ).toFixed(1)}
+              %
+            </h3>
+
+            <img
+                src={pics[Math.min(lifeLeft, pics.length - 1)]}
+                alt="Hangman"
+                style={{ width: "200px", marginTop: "20px", marginBottom: "30px" }}
+            />
+
+
+            <button onClick={this.startNewGame} style={{ marginTop: "20px" }}>
+              New Game
+            </button>
+
+            <p style={{ fontSize: "30px", marginTop: "20px", letterSpacing: "10px" }}>
+              {word
+                .split("")
+                .map((char) =>
+                  this.state.correctLetters.includes(char.toLowerCase())
+                    ? char.toUpperCase()
+                    : "_"
+                )
+                .join(" ")}
+            </p>
+
+            <SingleLetterSearchBar onSearch={this.handleSearch} />
+
+            <div style={{ marginTop: "20px" }}>{this.renderLetterButtons()}</div>
+          </div>
+        )}
       </div>
-
-      {/* Hangman Image */}
-      <img src={pics[Math.min(lifeLeft, pics.length - 1)]} alt="Hangman stage" style={{ width: '200px', height: 'auto' }} />
-
-      <br />
-      <button onClick={this.startNewGame}>New Game</button>
-
-      {/* Underscore Word Display */}
-      <p style={{ fontSize: "24px", letterSpacing: "8px" }}>
-        {word
-          .toLowerCase()
-          .split("")
-          .map((char, index) =>
-            this.state.correctLetters.includes(char) ? char.toUpperCase() : "_"
-          )
-          .join(" ")
-        }
-      </p>
-
-      <SingleLetterSearchBar onSearch={this.handleSearch} />
-
-      <div style={{ marginTop: '20px' }}>
-        {this.renderLetterButtons()}
-      </div>
-    </div>
-  );
-}
-n
-
-
+    );
+  }
 }
 
 export default HangmanGame;
